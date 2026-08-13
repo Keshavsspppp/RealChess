@@ -1,0 +1,155 @@
+.app {
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: #262421;
+  border-bottom: 1px solid #3d3a37;
+}
+
+.brand {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.content {
+  padding: 2rem 1rem;
+}
+
+.gate {
+  max-width: 24rem;
+  margin: 6vh auto;
+  text-align: center;
+}
+
+.game {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.board {
+  width: min(80vw, 560px);
+  position: relative;
+}
+
+.promo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: rgba(38, 36, 33, 0.85);
+  border-radius: 6px;
+}
+.promo p {
+  margin: 0;
+  font-weight: 600;
+}
+.promo-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.promo-btn {
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: 2.2rem;
+  line-height: 1;
+  border: none;
+  border-radius: 6px;
+  background: #ebecd0;
+  color: #202020;
+  cursor: pointer;
+}
+.promo-btn:hover {
+  background: #f5f6e0;
+}
+
+.panel {
+  min-width: 180px;
+}
+
+.status {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0.25rem 0 1rem;
+}
+
+.btn {
+  font: inherit;
+  padding: 0.55rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: #4b4847;
+  color: #fff;
+  cursor: pointer;
+}
+.btn:hover {
+  background: #5a5654;
+}
+.btn-primary {
+  background: #7fa650;
+}
+.btn-primary:hover {
+  background: #8db95c;
+}
+.btn-active {
+  background: #7fa650;
+}
+
+.modes {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.muted {
+  color: #a8a5a1;
+  font-size: 0.9rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.85rem;
+  font-size: 0.9rem;
+  color: #c7c4c0;
+}
+.field select {
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #3d3a37;
+  background: #262421;
+  color: #fff;
+}
+
+.stats {
+  margin-top: 1.5rem;
+  border-top: 1px solid #3d3a37;
+  padding-top: 1rem;
+}
+.rating {
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+}
+.history li {
+  padding: 0.2rem 0;
+  color: #c7c4c0;
+}
+.h-won { color: #7fce5a; }
+.h-lost { color: #e0736a; }

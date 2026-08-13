@@ -1,0 +1,30 @@
+:root {
+  font-family: system-ui, -apple-system, sans-serif;
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #302e2b;
+  color: #e8e6e3;
+}
+
+.setup-notice {
+  max-width: 32rem;
+  margin: 4rem auto;
+  padding: 2rem;
+  line-height: 1.6;
+}
+.setup-notice pre {
+  background: #1f1e1c;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.setup-notice a {
+  color: #7fa650;
+}
