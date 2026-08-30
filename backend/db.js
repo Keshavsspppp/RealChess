@@ -53,8 +53,9 @@ export function elo(ra, rb, sa, k = 32) {
 export async function persistGame({ whiteId, blackId, pgn, result, winner }) {
   if (!pool) return
   const sa = winner === 'white' ? 1 : winner === 'black' ? 0 : 0.5
-  const client = await pool.connect()
+  let client
   try {
+    client = await pool.connect() // inside the try: a dead pool must not reject into the caller
     await client.query('begin')
     const ra = await currentRating(client, whiteId)
     const rb = await currentRating(client, blackId)
@@ -68,10 +69,10 @@ export async function persistGame({ whiteId, blackId, pgn, result, winner }) {
     )
     await client.query('commit')
   } catch (e) {
-    await client.query('rollback')
+    await client?.query('rollback').catch(() => {}) // rollback can itself fail; don't mask the real error
     console.error('persist failed:', e.message)
   } finally {
-    client.release()
+    client?.release()
   }
 }
 

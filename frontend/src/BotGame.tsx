@@ -3,6 +3,7 @@ import { Chess, type Square } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import PromotionPicker, { type Promo } from './PromotionPicker'
 import { createEngine, type Engine, type Difficulty } from './engine'
+import { statusOf } from './status'
 
 const HIGHLIGHT: CSSProperties = { background: 'rgba(255, 255, 0, 0.4)' }
 
@@ -143,13 +144,7 @@ export default function BotGame() {
     setColor(nextColor) // fen change + color triggers the engine effect (opens if you're black)
   }
 
-  const turn = game.turn() === 'w' ? 'White' : 'Black'
-  let status: string
-  if (game.isCheckmate()) status = `Checkmate — ${turn === 'White' ? 'Black' : 'White'} wins`
-  else if (game.isDraw()) status = 'Draw'
-  else if (game.isStalemate()) status = 'Stalemate'
-  else if (thinking) status = 'Computer is thinking…'
-  else status = `${turn} to move${game.inCheck() ? ' — check!' : ''}`
+  const status = thinking && !game.isGameOver() ? 'Computer is thinking…' : statusOf(game)
 
   return (
     <div className="game">

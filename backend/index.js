@@ -37,11 +37,17 @@ const httpServer = createServer(async (req, res) => {
   if (req.url === '/health') return res.writeHead(200).end('ok')
 
   if (req.url.startsWith('/api/')) {
-    const userId = await authFromHeader(req)
-    if (!userId) return res.writeHead(401).end()
-    if (req.url === '/api/me') return json(res, await getMe(userId))
-    if (req.url.startsWith('/api/games')) return json(res, await getGames(userId))
-    return res.writeHead(404).end()
+    // A rejected DB query here would otherwise be an unhandled rejection — which kills the process.
+    try {
+      const userId = await authFromHeader(req)
+      if (!userId) return res.writeHead(401).end()
+      if (req.url === '/api/me') return json(res, await getMe(userId))
+      if (req.url.startsWith('/api/games')) return json(res, await getGames(userId))
+      return res.writeHead(404).end()
+    } catch (e) {
+      console.error('API error:', e.message)
+      return res.writeHead(500).end()
+    }
   }
   res.writeHead(404).end()
 })
@@ -61,9 +67,17 @@ io.use(async (socket, next) => {
   }
 })
 
-let waiting = null // one socket waiting for an opponent
+const waiting = [] // sockets queued for an opponent, oldest first
 const games = new Map() // gameId -> { chess, white, black }
 let nextGameId = 1
+
+// Oldest queued socket that is still connected and belongs to a different account.
+// Two tabs of one account must never be paired: persistGame would then read and
+// write the same players row twice in one transaction and corrupt that rating.
+function takeOpponent(socket) {
+  const i = waiting.findIndex((s) => s.connected && s.data.userId !== socket.data.userId)
+  return i === -1 ? null : waiting.splice(i, 1)[0]
+}
 
 // ponytail: server owns the real game; every move re-validated here. Never trust the client.
 function stateOf(chess) {
@@ -89,10 +103,10 @@ function playersOf(game) {
 }
 
 io.on('connection', (socket) => {
-  if (waiting && waiting.connected && waiting.id !== socket.id) {
-    const white = waiting
+  const opponent = takeOpponent(socket)
+  if (opponent) {
+    const white = opponent
     const black = socket
-    waiting = null
 
     const gameId = String(nextGameId++)
     const chess = new Chess()
@@ -104,20 +118,22 @@ io.on('connection', (socket) => {
       s.emit('start', { gameId, color, ...stateOf(chess) })
     }
   } else {
-    waiting = socket
+    waiting.push(socket)
     socket.emit('waiting')
   }
 
-  socket.on('move', async ({ from, to, promotion }) => {
+  socket.on('move', async (msg) => {
+    const { from, to, promotion } = msg || {} // a bare emit('move') must not crash the server
     const game = games.get(socket.data.gameId)
     if (!game) return
     const myTurn = game.chess.turn() === (socket.data.color === 'white' ? 'w' : 'b')
-    if (!myTurn) return socket.emit('rejected') // not your turn
+    // Send the authoritative position back so a client that guessed wrong can re-sync.
+    if (!myTurn) return socket.emit('rejected', { fen: game.chess.fen() })
     try {
       // chess.js rejects a bad promotion letter; default to queen when none sent.
       game.chess.move({ from, to, promotion: promotion || 'q' })
     } catch {
-      return socket.emit('rejected') // illegal move
+      return socket.emit('rejected', { fen: game.chess.fen() }) // illegal move
     }
     const state = stateOf(game.chess)
     if (state.over) {
@@ -136,21 +152,22 @@ io.on('connection', (socket) => {
     const winner = loser === 'white' ? 'black' : 'white'
     games.delete(socket.data.gameId)
     const status = `${loser[0].toUpperCase() + loser.slice(1)} resigned — ${winner === 'white' ? 'White' : 'Black'} wins`
+    await persistGame({ ...playersOf(game), result: 'resign', winner }) // save before clients refetch
     game.white.emit('ended', { status })
     game.black.emit('ended', { status })
-    await persistGame({ ...playersOf(game), result: 'resign', winner })
   })
 
   socket.on('disconnect', async () => {
-    if (waiting?.id === socket.id) waiting = null
+    const queued = waiting.indexOf(socket)
+    if (queued !== -1) waiting.splice(queued, 1)
     const game = games.get(socket.data.gameId)
     if (!game) return
     const other = game.white.id === socket.id ? game.black : game.white
-    other.emit('opponentLeft')
     // Leaving an unfinished game = forfeit.
     const winner = game.white.id === socket.id ? 'black' : 'white'
     games.delete(socket.data.gameId)
-    await persistGame({ ...playersOf(game), result: 'abandon', winner })
+    await persistGame({ ...playersOf(game), result: 'abandon', winner }) // save before clients refetch
+    other.emit('opponentLeft')
   })
 })
 

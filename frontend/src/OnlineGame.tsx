@@ -49,8 +49,10 @@ export default function OnlineGame() {
         setStatus(status)
         if (over) { setPhase('ended'); setEndCount((c) => c + 1) }
       })
-      socket.on('rejected', () => {
-        // server refused our move — re-sync board to the authoritative position
+      socket.on('rejected', ({ fen }) => {
+        // Server refused our move. We had already applied it optimistically, so the
+        // local board is the wrong one — reload the server's position, not ours.
+        if (fen) gameRef.current.load(fen)
         setFen(gameRef.current.fen())
       })
       socket.on('ended', ({ status }) => {
@@ -104,12 +106,13 @@ export default function OnlineGame() {
 
   function choosePromotion(piece: Promo) {
     if (!pending) return
+    setPending(null)
+    if (phase !== 'playing') return // game ended while the picker was open — drop the move
     try {
       sendMove(pending.from, pending.to, piece)
     } catch {
       setFen(gameRef.current.fen()) // shouldn't happen (legality pre-checked); re-sync if it does
     }
-    setPending(null)
   }
 
   function resign() {
