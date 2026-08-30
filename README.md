@@ -11,8 +11,11 @@ chess/
 │   │   ├── BotGame.tsx          vs Stockfish (difficulty, pick your color)
 │   │   ├── OnlineGame.tsx       online 1v1 over Socket.IO
 │   │   ├── Stats.tsx            rating + recent games, fetched from the backend
+│   │   ├── Clock.tsx            countdown display, re-synced from the server
+│   │   ├── MoveList.tsx         SAN scoresheet
 │   │   ├── PromotionPicker.tsx  shared promotion overlay
-│   │   ├── status.ts            shared "White to move" / checkmate / draw text
+│   │   ├── status.ts            shared status text + clock formatting
+│   │   ├── boardStyles.ts       shared last-move square tint
 │   │   └── engine.ts            Stockfish Web Worker wrapper
 │   └── public/engine/   vendored Stockfish 18 lite WASM
 └── backend/             Node + Socket.IO
@@ -74,6 +77,8 @@ cd frontend && npm run build && npm run lint && npm test
 
 - Local 2-player, **vs computer** (Stockfish, Easy/Medium/Hard, play either color), and online 1v1
 - Full rules: legal moves, check/checkmate/stalemate/draw, **promotion picker**, **resign**
+- **Clocks** on online games — 10+0, server-run, win on time
+- **Last-move highlight** and a **move list** on every board
 - Server-authoritative — every move re-validated on the backend, which also owns game-over detection
 - Elo ratings (K=32, start 1200) + last-20 game history, with a database
 
@@ -87,9 +92,20 @@ cd frontend && npm run build && npm run lint && npm test
    `Chess` instance — the only position that counts — and broadcasts `state` to both players.
 4. A refused move comes back as `rejected` **carrying the server's FEN**, which the client loads to
    re-sync (its optimistic move is discarded).
-5. Games end via `state.over` (checkmate/draw), `ended` (resign), or `opponentLeft` (disconnect =
-   forfeit). The result is written to Postgres *before* the clients are told, so the stats panel
-   they immediately refetch is never stale.
+5. Games end via `state.over` (checkmate/draw), `ended` (resign or timeout), or `opponentLeft`
+   (disconnect = forfeit). The result is written to Postgres *before* the clients are told, so the
+   stats panel they immediately refetch is never stale.
+
+### Clocks
+
+Both sides get 10 minutes, no increment (`START_MS` in `backend/index.js`). The server holds the
+authoritative times: it charges the mover for the elapsed time when their move lands, then arms a
+single `setTimeout` for exactly the opponent's remaining time — no polling interval, one timer per
+game. If that timer fires, whoever is on move has flagged and loses. `endGame()` is the one place a
+game leaves the map, so a timer can never outlive its game and flag a finished one.
+
+Every `state` carries both clock readings; the browser only counts down between them and re-syncs on
+each move, so client drift never accumulates and never decides a game.
 
 ### HTTP API
 
@@ -110,7 +126,11 @@ cross-origin-isolation headers. Stockfish is **GPLv3**; keep that in mind if you
 
 ## Known gaps
 
-- No clocks/time control, draw offers, spectating, or rematch-same-opponent
+- One fixed time control (10+0) and no increment; more would mean segmenting the waiting queue
+- Clocks are online-only — local and bot games are untimed
+- No draw offers, spectating, or rematch-same-opponent
+- A disconnect forfeits immediately; there's no grace period to reconnect after a dropped network
+- Switching modes mid-game unmounts the board and forfeits the online game, with no warning
 - Matchmaking is first-come-first-served, not rating-based, and lives in memory — a server
   restart drops every in-progress game
 - The online board is drag-only; local and bot boards also support click-to-move

@@ -2,8 +2,10 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Chess, type Square } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import PromotionPicker, { type Promo } from './PromotionPicker'
+import MoveList from './MoveList'
 import { createEngine, type Engine, type Difficulty } from './engine'
 import { statusOf } from './status'
+import { lastMoveStyles, type LastMove } from './boardStyles'
 
 const HIGHLIGHT: CSSProperties = { background: 'rgba(255, 255, 0, 0.4)' }
 
@@ -25,6 +27,8 @@ export default function BotGame() {
   const [thinking, setThinking] = useState(false)
   const [color, setColor] = useState<'white' | 'black'>('white')
   const [level, setLevel] = useState<keyof typeof LEVELS>('Medium')
+  const [lastMove, setLastMove] = useState<LastMove>(null)
+  const [moves, setMoves] = useState<string[]>([])
 
   // Spin up the engine once.
   useEffect(() => {
@@ -49,7 +53,9 @@ export default function BotGame() {
       if (cancelled) return
       if (uci) {
         try {
-          g.move({ from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square, promotion: (uci[4] as Promo) || undefined })
+          const applied = g.move({ from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square, promotion: (uci[4] as Promo) || undefined })
+          setLastMove({ from: applied.from, to: applied.to }) // otherwise you cannot see what it played
+          setMoves((m) => [...m, applied.san])
           setFen(g.fen())
         } catch { /* engine move should always be legal; ignore if not */ }
       }
@@ -63,11 +69,14 @@ export default function BotGame() {
   }
 
   function applyMove(from: Square, to: Square, promotion?: Promo): boolean {
+    let applied
     try {
-      game.move({ from, to, promotion: promotion || 'q' })
+      applied = game.move({ from, to, promotion: promotion || 'q' })
     } catch {
       return false
     }
+    setLastMove({ from: applied.from, to: applied.to })
+    setMoves((m) => [...m, applied.san])
     setFen(game.fen())
     setMoveFrom('')
     setOptionSquares({})
@@ -141,6 +150,8 @@ export default function BotGame() {
     setOptionSquares({})
     setPending(null)
     setThinking(false)
+    setLastMove(null)
+    setMoves([])
     setColor(nextColor) // fen change + color triggers the engine effect (opens if you're black)
   }
 
@@ -156,7 +167,8 @@ export default function BotGame() {
             boardOrientation: color,
             onPieceDrop,
             onSquareClick,
-            squareStyles: optionSquares,
+            // selection dots sit on top of the last-move tint
+            squareStyles: { ...lastMoveStyles(lastMove), ...optionSquares },
             allowDragging: humanTurn() && !pending,
             darkSquareStyle: { backgroundColor: '#779556' },
             lightSquareStyle: { backgroundColor: '#ebecd0' },
@@ -185,6 +197,7 @@ export default function BotGame() {
         </label>
 
         <button className="btn" onClick={() => newGame()}>New game</button>
+        <MoveList moves={moves} />
       </div>
     </div>
   )

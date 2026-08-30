@@ -2,7 +2,9 @@ import { useRef, useState, type CSSProperties } from 'react'
 import { Chess, type Square } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import PromotionPicker, { type Promo } from './PromotionPicker'
+import MoveList from './MoveList'
 import { statusOf } from './status'
+import { lastMoveStyles, type LastMove } from './boardStyles'
 
 const HIGHLIGHT: CSSProperties = { background: 'rgba(255, 255, 0, 0.4)' }
 
@@ -13,13 +15,19 @@ export default function ChessGame() {
   const [moveFrom, setMoveFrom] = useState<Square | ''>('')
   const [optionSquares, setOptionSquares] = useState<Record<string, CSSProperties>>({})
   const [pending, setPending] = useState<{ from: Square; to: Square } | null>(null) // awaiting promotion choice
+  const [lastMove, setLastMove] = useState<LastMove>(null)
+  const [moves, setMoves] = useState<string[]>([])
 
   function applyMove(from: Square, to: Square, promotion?: Promo): boolean {
+    let applied
     try {
-      game.move({ from, to, promotion: promotion || 'q' })
+      applied = game.move({ from, to, promotion: promotion || 'q' })
     } catch {
       return false // illegal move
     }
+    // Take from/to and SAN off the returned move rather than re-deriving history() each render.
+    setLastMove({ from: applied.from, to: applied.to })
+    setMoves((m) => [...m, applied.san])
     setFen(game.fen())
     setMoveFrom('')
     setOptionSquares({})
@@ -96,6 +104,8 @@ export default function ChessGame() {
     setMoveFrom('')
     setOptionSquares({})
     setPending(null)
+    setLastMove(null)
+    setMoves([])
   }
 
   const turn = game.turn() === 'w' ? 'White' : 'Black'
@@ -110,7 +120,8 @@ export default function ChessGame() {
             position: fen,
             onPieceDrop,
             onSquareClick,
-            squareStyles: optionSquares,
+            // selection dots sit on top of the last-move tint
+            squareStyles: { ...lastMoveStyles(lastMove), ...optionSquares },
             allowDragging: !pending,
             darkSquareStyle: { backgroundColor: '#779556' },
             lightSquareStyle: { backgroundColor: '#ebecd0' },
@@ -121,6 +132,7 @@ export default function ChessGame() {
       <div className="panel">
         <p className="status">{status}</p>
         <button className="btn" onClick={reset}>New game</button>
+        <MoveList moves={moves} />
       </div>
     </div>
   )

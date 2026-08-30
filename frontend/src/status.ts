@@ -10,3 +10,10 @@ export function statusOf(game: Chess): string {
   if (game.isDraw()) return 'Draw'
   return `${turn} to move${game.inCheck() ? ' — check!' : ''}`
 }
+
+// Clock readout as m:ss. Ceil so a clock one millisecond into its first tick still
+// reads its full starting time rather than jumping a second the instant play begins.
+export function formatClock(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}

@@ -4,12 +4,24 @@ import { Chess, type Square } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { io, type Socket } from 'socket.io-client'
 import Stats from './Stats'
+import Clock from './Clock'
+import MoveList from './MoveList'
 import PromotionPicker, { type Promo } from './PromotionPicker'
+import { lastMoveStyles, type LastMove } from './boardStyles'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'
 
 type Phase = 'connecting' | 'waiting' | 'playing' | 'ended' | 'error'
 type Pending = { from: Square; to: Square }
+type Clocks = { whiteMs: number; blackMs: number }
+type ServerState = {
+  fen: string
+  status: string
+  turn: 'white' | 'black'
+  over: boolean
+  lastMove: LastMove
+  history: string[]
+} & Clocks
 
 export default function OnlineGame() {
   const { getToken } = useAuth()
@@ -23,6 +35,10 @@ export default function OnlineGame() {
   const [pending, setPending] = useState<Pending | null>(null) // awaiting promotion choice
   const [endCount, setEndCount] = useState(0) // bumps when a game finishes → refresh stats
   const [sessionId, setSessionId] = useState(0) // bump to reconnect for a new game
+  const [lastMove, setLastMove] = useState<LastMove>(null)
+  const [moves, setMoves] = useState<string[]>([])
+  const [clocks, setClocks] = useState<Clocks>({ whiteMs: 0, blackMs: 0 })
+  const [turn, setTurn] = useState<'white' | 'black'>('white')
 
   useEffect(() => {
     let socket: Socket | undefined
@@ -34,20 +50,27 @@ export default function OnlineGame() {
       socket = io(SERVER_URL, { auth: { token } })
       socketRef.current = socket
 
+      // start and state carry the same position payload; only the framing differs.
+      const applyState = ({ fen, status, lastMove, history, whiteMs, blackMs, turn }: ServerState) => {
+        gameRef.current.load(fen) // load() drops move history, which is why the server sends it
+        setFen(fen)
+        setStatus(status)
+        setLastMove(lastMove)
+        setMoves(history)
+        setClocks({ whiteMs, blackMs })
+        setTurn(turn)
+      }
+
       socket.on('connect_error', () => setPhase('error'))
       socket.on('waiting', () => { setPhase('waiting'); setStatus('Waiting for an opponent…') })
-      socket.on('start', ({ color, fen, status }) => {
-        gameRef.current.load(fen)
-        setColor(color)
-        setFen(fen)
-        setStatus(status)
+      socket.on('start', (msg) => {
+        applyState(msg)
+        setColor(msg.color)
         setPhase('playing')
       })
-      socket.on('state', ({ fen, status, over }) => {
-        gameRef.current.load(fen)
-        setFen(fen)
-        setStatus(status)
-        if (over) { setPhase('ended'); setEndCount((c) => c + 1) }
+      socket.on('state', (msg) => {
+        applyState(msg)
+        if (msg.over) { setPhase('ended'); setEndCount((c) => c + 1) }
       })
       socket.on('rejected', ({ fen }) => {
         // Server refused our move. We had already applied it optimistically, so the
@@ -123,6 +146,9 @@ export default function OnlineGame() {
     gameRef.current.reset()
     setFen(gameRef.current.fen())
     setPending(null)
+    setLastMove(null)
+    setMoves([])
+    setClocks({ whiteMs: 0, blackMs: 0 })
     setStatus('Connecting…')
     setPhase('connecting')
     setSessionId((s) => s + 1) // re-runs the effect → new socket → re-queued
@@ -137,6 +163,7 @@ export default function OnlineGame() {
             position: fen,
             boardOrientation: color,
             onPieceDrop,
+            squareStyles: lastMoveStyles(lastMove),
             allowDragging: phase === 'playing' && !pending,
             darkSquareStyle: { backgroundColor: '#779556' },
             lightSquareStyle: { backgroundColor: '#ebecd0' },
@@ -146,12 +173,29 @@ export default function OnlineGame() {
       </div>
       <div className="panel">
         <p className="status">{status}</p>
-        {phase === 'playing' && <p className="muted">You are {color}</p>}
+        {(phase === 'playing' || phase === 'ended') && (
+          <div className="clocks">
+            {/* opponent on top, you underneath — the way a board faces you */}
+            <Clock
+              label={color === 'white' ? 'Black' : 'White'}
+              ms={color === 'white' ? clocks.blackMs : clocks.whiteMs}
+              active={turn !== color}
+              running={phase === 'playing'}
+            />
+            <Clock
+              label={`${color === 'white' ? 'White' : 'Black'} (you)`}
+              ms={color === 'white' ? clocks.whiteMs : clocks.blackMs}
+              active={turn === color}
+              running={phase === 'playing'}
+            />
+          </div>
+        )}
         {phase === 'playing' && <button className="btn" onClick={resign}>Resign</button>}
         {(phase === 'ended' || phase === 'error') && (
           <button className="btn btn-primary" onClick={newOpponent}>Find new opponent</button>
         )}
         {phase === 'error' && <p className="muted">Can't reach the server. Is it running on {SERVER_URL}?</p>}
+        <MoveList moves={moves} />
         <Stats refresh={endCount} />
       </div>
     </div>
