@@ -15,15 +15,26 @@ chess/
 │   │   ├── MoveList.tsx         SAN scoresheet
 │   │   ├── PromotionPicker.tsx  shared promotion overlay
 │   │   ├── status.ts            shared status text + clock formatting
+│   │   ├── status.test.ts       node:test suite for the above
 │   │   ├── boardStyles.ts       shared last-move square tint
 │   │   └── engine.ts            Stockfish Web Worker wrapper
 │   └── public/engine/   vendored Stockfish 18 lite WASM
 └── backend/             Node + Socket.IO
-    ├── index.js         matchmaking, authoritative game loop, HTTP API
+    ├── index.js         matchmaking, authoritative game loop, clocks, HTTP API
     └── db.js            Postgres schema, Elo, persistence
 ```
 
 **Stack:** React 19, [chess.js](https://github.com/jhlywa/chess.js) (rules), [react-chessboard](https://github.com/Clariity/react-chessboard) (board), [Clerk](https://clerk.com) (auth), Socket.IO (real-time), Postgres via `pg` (saved games + Elo), [Stockfish 18](https://github.com/nmrugg/stockfish.js) WASM (computer opponent).
+
+## Requirements
+
+**Node 24 or newer.** The backend scripts use `--env-file-if-exists`, and `npm test` runs `.ts`
+files directly — both rely on type stripping and env-file loading being native to modern Node, so
+neither works on Node 20.
+
+```bash
+git clone https://github.com/Keshavsspppp/RealChess.git
+```
 
 ## Setup
 
@@ -138,3 +149,4 @@ cross-origin-isolation headers. Stockfish is **GPLv3**; keep that in mind if you
   superseded promise unresolved (harmless today, but it needs a UCI `stop` if search is queued)
 - Remote Postgres connects with `rejectUnauthorized: false` (`backend/db.js`), which skips
   certificate verification — fine for a local/hobby DB, worth tightening before real deployment
+- No `LICENSE` file. Worth deciding before publishing, since the vendored Stockfish build is GPLv3
